@@ -29,7 +29,7 @@ function useFadeIn(threshold = 0.12) {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, []);
+  }, [threshold]);
   return [ref, visible];
 }
 
@@ -806,6 +806,8 @@ export default function App() {
               <span className="logo-div" aria-hidden="true" />
               Accessibility
             </a>
+            {/* role="list" restores list semantics in Safari/VoiceOver when list-style is none */}
+            {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
             <ul className="nav-links" role="list">
               {NAV_LINKS.map((l) => (
                 <li key={l.href}><a href={l.href}>{l.label}</a></li>
