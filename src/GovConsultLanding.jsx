@@ -126,7 +126,59 @@ const STATS = [
 const CERTS = ["CPACC Certified", "WCAG 2.2 AAA", "GSA Schedule Eligible", "NYC MWBE", "SOC 2 Ready"];
 
 /* ─── Component ───────────────────────────────────────────────────── */
+/* ─── Contact form submission (Web3Forms) ─────────────────────────── */
+// Free access key from https://web3forms.com, tied to contact@ckaccessibility.com.
+// Set REACT_APP_WEB3FORMS_KEY in Vercel → Project → Settings → Environment Variables.
+const WEB3FORMS_KEY = process.env.REACT_APP_WEB3FORMS_KEY;
+
+function useContactForm() {
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error | invalid
+  const [message, setMessage] = useState("");
+  const statusRef = useRef(null);
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+
+    if (!form.checkValidity()) {
+      const firstInvalid = form.querySelector(":invalid");
+      setStatus("invalid");
+      setMessage("Please fill in your name, a valid email address, and a message.");
+      if (firstInvalid) firstInvalid.focus();
+      return;
+    }
+    if (!WEB3FORMS_KEY) {
+      setStatus("error");
+      setMessage("The contact form isn't configured yet. Please email contact@ckaccessibility.com directly.");
+      return;
+    }
+
+    setStatus("sending");
+    setMessage("Sending your message…");
+    const data = new FormData(form);
+    data.append("access_key", WEB3FORMS_KEY);
+    data.append("subject", `New inquiry from ${data.get("name")} — ckaccessibility.com`);
+    data.append("from_name", "CK Accessibility website");
+
+    try {
+      const res = await fetch("https://api.web3forms.com/submit", { method: "POST", body: data });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Send failed");
+      form.reset();
+      setStatus("sent");
+      setMessage("Thank you — your message was sent. We'll be in touch within one business day.");
+    } catch {
+      setStatus("error");
+      setMessage("Sorry, your message couldn't be sent. Please try again or email contact@ckaccessibility.com.");
+    }
+    if (statusRef.current) statusRef.current.focus();
+  }
+
+  return { status, message, statusRef, onSubmit };
+}
+
 export default function App() {
+  const contact = useContactForm();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef      = useRef(null);
@@ -719,6 +771,12 @@ export default function App() {
           width: 100%; padding: 1.1rem; margin-top: .5rem;
           justify-content: center; font-size: .82rem;
         }
+        .btn-submit[disabled] { opacity: .7; cursor: wait; }
+        .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+        .form-status { margin-top: 1rem; font-size: .95rem; line-height: 1.5; min-height: 1.5em; }
+        .form-status:focus { outline: 2px solid currentColor; outline-offset: 4px; }
+        .form-status--sent { color: #1f7a3f; font-weight: 600; }
+        .form-status--error, .form-status--invalid { color: #b3261e; font-weight: 600; }
 
         /* ══ FOOTER ══ */
         footer { background: var(--ink); padding: 3rem 2.5rem; }
@@ -1016,11 +1074,12 @@ export default function App() {
                 <form
                   noValidate
                   aria-label="Contact form — fields marked with an asterisk are required"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    alert("Thank you — we'll be in touch within one business day.");
-                  }}
+                  onSubmit={contact.onSubmit}
+                  aria-describedby="form-status"
                 >
+                  {/* Honeypot: hidden from people and assistive tech, catches spam bots */}
+                  <input type="checkbox" name="botcheck" className="hp-field"
+                    tabIndex={-1} autoComplete="off" aria-hidden="true" />
                   <div className="form-grid">
                     <div className="form-group">
                       <label htmlFor="f-name" className="form-label">
@@ -1067,7 +1126,16 @@ export default function App() {
                         placeholder="Briefly describe your project or question…" />
                     </div>
                   </div>
-                  <button type="submit" className="btn-primary btn-submit">Send Message</button>
+                  <button type="submit" className="btn-primary btn-submit"
+                    disabled={contact.status === "sending"}
+                    aria-disabled={contact.status === "sending"}>
+                    {contact.status === "sending" ? "Sending…" : "Send Message"}
+                  </button>
+                  <p id="form-status" ref={contact.statusRef} tabIndex={-1}
+                    role={contact.status === "error" || contact.status === "invalid" ? "alert" : "status"}
+                    className={`form-status form-status--${contact.status}`}>
+                    {contact.message}
+                  </p>
                 </form>
               </FadeSection>
             </div>
